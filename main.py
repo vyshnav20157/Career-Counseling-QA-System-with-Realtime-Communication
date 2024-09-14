@@ -7,20 +7,21 @@ import librosa
 import soundfile as sf
 from gtts import gTTS
 from playsound import playsound
-
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from transformers import pipeline
 import nltk
 import csv
-import os
 
 # Initialize Flask application
 app = Flask(__name__)
 
 # Load necessary NLTK data
 nltk.download('punkt')
+
+# Global variable to store the last generated answer
+last_answer = None
 
 # Load the tokens from CSV again for reference
 def load_tokens_from_csv(filename):
@@ -89,7 +90,6 @@ else:
     # Save FAISS index to disk
     faiss.write_index(paragraph_index, index_file)
 
-
 def get_relevant_paragraphs(question, k=5):
     # Encode the question using the same embedding model
     question_embedding = embedding_model.encode([question])
@@ -114,40 +114,42 @@ def answer_question(question):
     generated_answer = generative_model(generated_prompt, max_length=200, min_length=100)
     return generated_answer[0]['generated_text']
 
-# Example usage:
-# question = "What are good careers in tech?"
-# answer = answer_question(question)
-# print(f"Question: {question}\nAnswer: {answer}")
-
 # Initialize Whisper model for Speech-to-Text
 stt_model = whisper.load_model("medium")
 
 # Endpoint to handle question asking
 @app.route('/ask_question', methods=['POST'])
 def ask_question():
+    global last_answer  # Use the global variable
+
     if 'file' in request.files:  # If an audio file is uploaded
         file = request.files['file']
         if file.filename == '':
             return jsonify({"error": "No file selected."}), 400
 
-        # Save the uploaded audio file temporarily
-        filename = secure_filename(file.filename)
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-        file.save(temp_file.name)
+        # Save the uploaded audio file temporarily using a context manager
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_file:
+            file.save(temp_file.name)
+            temp_file_path = temp_file.name
 
         # Transcribe the audio to text
         try:
-            transcribed_text = transcribe_audio(temp_file.name)
-            os.remove(temp_file.name)  # Clean up the temporary file
+            transcribed_text = transcribe_audio(temp_file_path)
+            
+            # Ensure the file is deleted after transcription is done
+            os.remove(temp_file_path)
 
             if not transcribed_text:
                 return jsonify({"error": "Failed to transcribe audio."}), 500
 
             # Get the answer using the QA system
-            answer = answer_question(transcribed_text)
-            return jsonify({"answer": answer}), 200
+            last_answer = answer_question(transcribed_text)
+            return jsonify({"answer": last_answer}), 200
 
         except Exception as e:
+            # Ensure the temporary file is deleted in case of an error
+            if os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
             return jsonify({"error": str(e)}), 500
 
     elif 'text' in request.form:  # If a text input is provided
@@ -156,23 +158,25 @@ def ask_question():
             return jsonify({"error": "Text input is empty."}), 400
 
         # Get the answer using the QA system
-        answer = answer_question(question)
-        return jsonify({"answer": answer}), 200
+        last_answer = answer_question(question)
+        return jsonify({"answer": last_answer}), 200
 
     else:
         return jsonify({"error": "Invalid input. Provide either 'text' or 'file'."}), 400
 
+
 # Endpoint to convert text answer to audio and return audio file
 @app.route('/get_answer_audio', methods=['GET'])
 def get_answer_audio():
-    answer_text = request.args.get('answer')
-    if not answer_text:
-        return jsonify({"error": "No answer text provided."}), 400
+    global last_answer  # Use the global variable
+
+    if not last_answer:
+        return jsonify({"error": "No answer available. Please use /ask_question first."}), 400
 
     try:
         # Convert text to speech and save as a temporary audio file
         temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-        tts = gTTS(text=answer_text, lang='en', tld="co.uk")
+        tts = gTTS(text=last_answer, lang='en', tld="co.uk")
         tts.save(temp_audio.name)
 
         # Return the generated audio file using the updated `send_file` method
@@ -190,23 +194,23 @@ def transcribe_audio(audio_file_path):
         # Load audio with librosa
         audio, sr = librosa.load(audio_file_path, sr=16000)
         
-        # Save as temporary WAV file with correct format
-        temp_wav = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-        sf.write(temp_wav.name, audio, sr)
-        
-        # Ensure the file is closed before processing
-        temp_wav.close()
+        # Save as temporary WAV file with correct format using context manager
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_wav:
+            sf.write(temp_wav.name, audio, sr)
+            temp_wav_name = temp_wav.name
 
         # Transcribe the audio file to text
-        result = stt_model.transcribe(temp_wav.name)
-        
-        # Clean up the temporary file
-        os.remove(temp_wav.name)
-        
+        result = stt_model.transcribe(temp_wav_name)
+
+        # Ensure the temporary file is deleted after use
+        os.remove(temp_wav_name)
+
         return result['text']
     except Exception as e:
         print(f"Error during transcription: {e}")
         return ""
+
+
 
 # Run the Flask app
 if __name__ == '__main__':
