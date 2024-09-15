@@ -77,33 +77,47 @@ nltk.download('punkt')
     ###### To get the answer to a query:
 
     Send a POST request to /ask_question with either a text input or an audio file like below.
-    `curl -X POST -F "text=What is career counseling?" http://127.0.0.1:5000/ask_question`
+    ```
+    curl -X POST -F "text=What is career counseling?" http://127.0.0.1:5000/ask_question
+    ```
 
-    `curl -X POST -F "file=@recorded_audio.wav" http://127.0.0.1:5000/ask_question`<br>
+    ```
+    curl -X POST -F "file=@recorded_audio.wav" http://127.0.0.1:5000/ask_question
+    ``` 
     
     ###### To get the answer in audio format:
 
     Send a GET request to /get_answer_audio like below. Ensure you have asked a question first using `/ask_question`.
-    `curl -X GET http://127.0.0.1:5000/get_answer_audio --output answer.mp3`<br><br>
+    ```
+    curl -X GET http://127.0.0.1:5000/get_answer_audio --output answer.mp3
+    ```
+    <br>
 
 3. **Audio Recording Script**
 
    Open the application to change the time that the audio is recorded. Default is 5 seconds.
    Run the file by typing the following in any CLI:
-   `python Record_Audio.py` <br><br>
+   ```
+   python Record_Audio.py
+   ``` 
+   <br>
 
 4. **Using the Server of SocketIO based Flask Application**
 
    The socketserver.py script is an extension of the Flask application, which introduces real-time communication using Flask-SocketIO. This allows the application to handle both text and audio inputs from a client, process them, and send responses back in real-time.
    Use the following CLI command to start the server on one terminal
-   `python SocketServer.py`
+   ```
+   python SocketServer.py
+   ```
    Wait a while as the server starts and gets hosted.<br><br>
 
 5. **Using the Client of the SocketIO based Flask Application**
 
    The socketclient.py script serves as a client that communicates with the socketserver.py server using SocketIO. 
    After the server has been hosted, use the following CLI command to start the client on another terminal
-   `python SocketClient.py`
+   ```
+   python SocketClient.py
+   ```
    It will bring up a menu to choose between input types. Then choose which option between textual and audio output. Then you will be prompted to write or speak the query as per your input type.
 
 ## Explanation of Models used
