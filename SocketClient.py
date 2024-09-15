@@ -2,6 +2,8 @@ import socketio
 import pyaudio
 import wave
 import threading
+import os
+from playsound import playsound
 
 # Flask-SocketIO server URL
 SERVER_URL = "http://127.0.0.1:5000"
@@ -68,28 +70,33 @@ def on_response(data):
             with open('response_audio.mp3', 'wb') as f:
                 f.write(data['audio'])
             print("Audio response saved as 'response_audio.mp3'.")
+            try:
+                # Automatically play the audio response
+                playsound('response_audio.mp3')
+            except Exception as e:
+                print(f"Error playing audio: {e}")
     
     # Signal that the response has been received
     response_event.set()
 
-def send_text_query(text):
+def send_text_query(text, response_format):
     """
     Sends a text query to the server via SocketIO.
     """
     # Clear the event before sending a new query
     response_event.clear()
-    print(f"Sending text query: {text}")
-    sio.emit('interact', {'text': text})
+    print(f"Sending text query: {text} with response format: {response_format}")
+    sio.emit('interact', {'text': text, 'response_format': response_format})
 
-def send_audio_query():
+def send_audio_query(response_format):
     """
     Records audio and sends it to the server via SocketIO.
     """
     # Clear the event before sending a new query
     response_event.clear()
     audio_data = record_audio()
-    print(f"Sending audio query of length (in bytes): {len(audio_data)}")
-    sio.emit('interact', {'audio': audio_data})
+    print(f"Sending audio query of length (in bytes): {len(audio_data)} with response format: {response_format}")
+    sio.emit('interact', {'audio': audio_data, 'response_format': response_format})
 
 def main():
     # Connect to the SocketIO server
@@ -103,16 +110,22 @@ def main():
         print("3. Exit")
         choice = input("Enter your choice (1/2/3): ")
 
-        if choice == '1':
-            text_query = input("Enter your text query: ")
-            send_text_query(text_query)
-            # Wait for the response to be received
-            response_event.wait()
-        elif choice == '2':
-            print("Recording audio for query...")
-            send_audio_query()
-            # Wait for the response to be received
-            response_event.wait()
+        if choice in ['1', '2']:
+            response_format = input("Enter response format (text/audio): ").strip().lower()
+            if response_format not in ['text', 'audio']:
+                print("Invalid response format. Please enter 'text' or 'audio'.")
+                continue
+
+            if choice == '1':
+                text_query = input("Enter your text query: ")
+                send_text_query(text_query, response_format)
+                # Wait for the response to be received
+                response_event.wait()
+            elif choice == '2':
+                #print("Recording audio for query...")
+                send_audio_query(response_format)
+                # Wait for the response to be received
+                response_event.wait()
         elif choice == '3':
             break
         else:

@@ -5,6 +5,7 @@ import tempfile
 import whisper
 import soundfile as sf
 import wave
+from gtts import gTTS
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from transformers import pipeline
@@ -15,9 +16,6 @@ import faiss
 # Initialize Flask application and SocketIO
 app = Flask(__name__)
 socketio = SocketIO(app)
-
-# Global variable to store the last generated answer
-last_answer = None
 
 # Load the Sentence Transformer model
 embedding_model = SentenceTransformer('multi-qa-mpnet-base-dot-v1')
@@ -126,6 +124,8 @@ def handle_interact(data):
     Handles both text and audio inputs, processes them, and returns the response.
     """
     print(f"Received data: {data}")
+    response_format = data.get('response_format', 'text')  # Default to text if not specified
+    
     if 'text' in data:
         question = data['text']
         print(f"Received text input: {question}")
@@ -133,7 +133,7 @@ def handle_interact(data):
             emit('response', {'error': 'Text input is empty.'})
         else:
             answer = answer_question(question)
-            emit('response', {'answer': answer})
+            send_response(answer, response_format)
 
     elif 'audio' in data:
         audio_data = data['audio']
@@ -160,13 +160,46 @@ def handle_interact(data):
             else:
                 # Get the answer using the QA system
                 answer = answer_question(transcribed_text)
-                emit('response', {'answer': answer})
+                send_response(answer, response_format)
 
         except Exception as e:
             print(f"Error processing audio input: {e}")
             if os.path.exists(temp_audio_path):
                 os.remove(temp_audio_path)
             emit('response', {'error': str(e)})
+
+def send_response(answer, response_format):
+    """
+    Sends the response back to the client in the specified format (text or audio).
+    """
+    if response_format == 'audio':
+        # Convert text to speech and save as a temporary audio file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_audio:
+            tts = gTTS(text=answer, lang='en', tld="co.uk")
+            tts.save(temp_audio.name)
+
+        # Read the audio file and send it as bytes
+        try:
+            with open(temp_audio.name, 'rb') as audio_file:
+                audio_data = audio_file.read()
+
+            # Emit the audio data back to the client
+            emit('response', {'audio': audio_data})
+        
+        except Exception as e:
+            emit('response', {'error': str(e)})
+        
+        finally:
+            # Ensure the temporary audio file is deleted after sending
+            if os.path.exists(temp_audio.name):
+                try:
+                    os.remove(temp_audio.name)
+                except Exception as e:
+                    print(f"Error deleting temporary file: {e}")
+    else:
+        # Send the response as text
+        emit('response', {'answer': answer})
+
 
 # Run the Flask-SocketIO app
 if __name__ == '__main__':
