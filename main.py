@@ -1,12 +1,10 @@
 from flask import Flask, request, jsonify, send_file
-from werkzeug.utils import secure_filename
 import os
 import tempfile
 import whisper
 import librosa
 import soundfile as sf
 from gtts import gTTS
-from playsound import playsound
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -17,11 +15,14 @@ import csv
 # Initialize Flask application
 app = Flask(__name__)
 
-# Load necessary NLTK data
-nltk.download('punkt')
-
 # Global variable to store the last generated answer
 last_answer = None
+
+# Load the Sentence Transformer model
+embedding_model = SentenceTransformer('multi-qa-mpnet-base-dot-v1')
+
+# Load a generative language model for open-ended answers (using T5)
+generative_model = pipeline('text2text-generation', model='t5-base')
 
 # Load the tokens from CSV again for reference
 def load_tokens_from_csv(filename):
@@ -38,18 +39,12 @@ tokens = load_tokens_from_csv("tokens.csv")
 # Combine tokens into a single text
 full_text = ' '.join(tokens)
 
-# Load the Sentence Transformer model
-embedding_model = SentenceTransformer('multi-qa-mpnet-base-dot-v1')
-
-# Load a generative language model for open-ended answers (using T5)
-generative_model = pipeline('text2text-generation', model='t5-base')
-
 # Function to split text into sentences
 def split_into_sentences(text):
     sentences = nltk.sent_tokenize(text)
     return sentences
 
-# Function to create overlapping paragraphs with more sentences per chunk
+# Function to create overlapping paragraphs with 10 sentences per chunk
 def create_overlapping_paragraphs(sentences, chunk_size=10, overlap=4):
     paragraphs = []
     for i in range(0, len(sentences), chunk_size - overlap):
@@ -68,27 +63,11 @@ paragraphs = create_overlapping_paragraphs(sentences, chunk_size=10, overlap=4)
 embeddings_file = 'paragraph_embeddings.npy'
 index_file = 'paragraph_faiss.index'
 
-# Check if the embeddings and index already exist
-if os.path.exists(embeddings_file) and os.path.exists(index_file):
-    # Load paragraph embeddings from disk
-    paragraph_embeddings = np.load(embeddings_file)
-    
-    # Load the FAISS index directly without passing an existing index object
-    paragraph_index = faiss.read_index(index_file)
-else:
-    # Create embeddings for each paragraph
-    paragraph_embeddings = embedding_model.encode(paragraphs)
-    
-    # Save paragraph embeddings to disk
-    np.save(embeddings_file, paragraph_embeddings)
-    
-    # Initialize a new FAISS index for paragraphs
-    dimension = paragraph_embeddings.shape[1]
-    paragraph_index = faiss.IndexFlatL2(dimension)
-    paragraph_index.add(np.array(paragraph_embeddings))
-    
-    # Save FAISS index to disk
-    faiss.write_index(paragraph_index, index_file)
+# Load paragraph embeddings from disk
+paragraph_embeddings = np.load(embeddings_file)
+
+# Load the FAISS index directly without passing an existing index object
+paragraph_index = faiss.read_index(index_file)
 
 def get_relevant_paragraphs(question, k=5):
     # Encode the question using the same embedding model
