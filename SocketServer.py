@@ -12,6 +12,7 @@ from transformers import pipeline
 import nltk
 import csv
 import faiss
+import re
 
 # Initialize Flask application and SocketIO
 app = Flask(__name__)
@@ -91,6 +92,28 @@ def answer_question(question):
     generated_prompt = f"Based on the following context, provide a detailed and informative answer in 3-5 sentences. Context: {context} Question: {question}"
     generated_answer = generative_model(generated_prompt, max_length=200, min_length=100)
     return generated_answer[0]['generated_text']
+
+def clean_text(text):
+    # Remove extra spaces around punctuation
+    text = re.sub(r'\s([?.!,:;"](?:\s|$))', r'\1', text)  # No space before punctuation
+    text = re.sub(r'([?.!,:;"])(\w)', r'\1 \2', text)  # Ensure space after punctuation
+
+    # Capitalize the first letter of each sentence
+    sentences = re.split(r'(?<=[.!?]) +', text)  # Split by sentences
+    sentences = [sentence.capitalize() for sentence in sentences]
+    text = ' '.join(sentences)
+    
+    # Correct spacing around quotes and parentheses
+    text = re.sub(r'\s+([’])', r'\1', text)  # Remove space before closing quote
+    text = re.sub(r'\s+([\'])', r'\1', text)  # Remove space before apostrophes
+    text = re.sub(r'([“])\s+', r'\1', text)  # Remove space after opening quote
+    text = re.sub(r'\(\s+', '(', text)  # No space after opening parenthesis
+    text = re.sub(r'\s+\)', ')', text)  # No space before closing parenthesis
+    
+    # Fix spacing around dashes or hyphens
+    text = re.sub(r'\s*-\s*', ' - ', text)
+    
+    return text.strip()
 
 # Initialize Whisper model for Speech-to-Text
 stt_model = whisper.load_model("medium")
@@ -172,6 +195,10 @@ def send_response(answer, response_format):
     """
     Sends the response back to the client in the specified format (text or audio).
     """
+    print(answer)
+    answer = clean_text(answer)
+    print(answer)
+
     if response_format == 'audio':
         # Convert text to speech and save as a temporary audio file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_audio:

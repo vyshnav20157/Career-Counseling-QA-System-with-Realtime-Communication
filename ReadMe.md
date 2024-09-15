@@ -2,15 +2,19 @@
 
 ## Overview
 
-This project has three important files: `main.ipynb, main.py, record_audio.py`
+This project has **five** important files: `main.ipynb`, `main.py`, `record_audio.py`, `socketserver.py`, and `socketclient.py`.
 
-- `main.ipynb` focuses on processing text from the given ebook in pdf format, tokenizing the text, and embedding the tokens using the `multi-qa-mpnet-base-dot-v1` model from the `sentence_transformers` library. 
+- `main.ipynb` focuses on processing text from the given ebook in pdf format, tokenizing the text, and embedding the tokens using the `multi-qa-mpnet-base-dot-v1` model from the `sentence_transformers` library for **indexing** purposes.
 
-- `main.py` creates a Flask Application in which there are two API endpoints:
+- `main.py` creates a Flask Application in which there are **two API endpoints**:
 `/ask_question` takes textual or an audio file as input and uses the `T5-Base` model to generate the answer to the user's query. Audio file is processed using Open-AI's `Whisper` module.
 `/get_answer_audio` takes the answer received from the prior API call and returns an audio file using `gTTS` that speaks the answer out.
 
 - `record_audio.py` uses `pyaudio` to record an audio file and save it onto the current directory.
+
+- `socketserver.py` creates a server-based **Flask Application with SocketIO** that allows realtime communication with the model via textual or audio input and one can receieve output in text or audio.
+
+- `socketclient.py` is the client application of the `socketserver.py` where you can interact with the server.
 
 ## Table of Contents
 
@@ -40,6 +44,10 @@ Ensure you have Python 3.x installed on your machine. The following Python libra
 - `csv`: For reading and writing CSV files.
 - `pyaudio`: A Python library for audio input and output.
 - `wave`: A module in Python's standard library for handling .wav files.
+- `Flask-SocketIO`: Adds Socket.IO support to the Flask application, enabling real-time, bidirectional communication between the client and server.
+- `socketio`: For client-side Socket.IO functionality to communicate with the server.
+- `playsound`: For playing the audio responses received from the server.
+- `threading`: For synchronizing the response handling.
 
 ### Download NLTK Data
 
@@ -52,7 +60,7 @@ nltk.download('punkt')
 
 ## Running the Project
 
-1. **Data Processing and Embedding Generation(not required for testing, mainly to view processing of data)**
+1. **Data Processing and Embedding Generation(Mainly to view processing of data)**
 
    Run the Jupyter Notebook that processes the text from a PDF file, tokenizes it, and generates embeddings using the `multi-qa-mpnet-base-dot-v1` model. The code also stores these embeddings in a FAISS index for later retrieval. <br><br>
 
@@ -75,14 +83,28 @@ nltk.download('punkt')
     
     ###### To get the answer in audio format:
 
-    Send a GET request to /get_answer_audio like below. Ensure you have asked a question first using /ask_question.
+    Send a GET request to /get_answer_audio like below. Ensure you have asked a question first using `/ask_question`.
     `curl -X GET http://127.0.0.1:5000/get_answer_audio --output answer.mp3`<br><br>
 
 3. **Audio Recording Script**
 
    Open the application to change the time that the audio is recorded. Default is 5 seconds.
    Run the file by typing the following in any CLI:
-   `python Record_Audio.py`
+   `python Record_Audio.py` <br><br>
+
+4. **Using the Server of SocketIO based Flask Application**
+
+   The socketserver.py script is an extension of the Flask application, which introduces real-time communication using Flask-SocketIO. This allows the application to handle both text and audio inputs from a client, process them, and send responses back in real-time.
+   Use the following CLI command to start the server on one terminal
+   `python SocketServer.py`
+   Wait a while as the server starts and gets hosted.<br><br>
+
+5. **Using the Client of the SocketIO based Flask Application**
+
+   The socketclient.py script serves as a client that communicates with the socketserver.py server using SocketIO. 
+   After the server has been hosted, use the following CLI command to start the client on another terminal
+   `python SocketClient.py`
+   It will bring up a menu to choose between input types. Then choose which option between textual and audio output. Then you will be prompted to write or speak the query as per your input type.
 
 ## Explanation of Models used
 

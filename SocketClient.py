@@ -44,7 +44,7 @@ def record_audio():
 
     # Return the recorded audio data as bytes
     audio_data = b''.join(frames)
-    print(f"Recorded audio length (in bytes): {len(audio_data)}")
+    #print(f"Recorded audio length (in bytes): {len(audio_data)}")
     return audio_data
 
 # Event handler for connecting to the server
@@ -85,7 +85,7 @@ def send_text_query(text, response_format):
     """
     # Clear the event before sending a new query
     response_event.clear()
-    print(f"Sending text query: {text} with response format: {response_format}")
+    #print(f"Sending text query: {text} with response format: {response_format}")
     sio.emit('interact', {'text': text, 'response_format': response_format})
 
 def send_audio_query(response_format):
@@ -95,7 +95,7 @@ def send_audio_query(response_format):
     # Clear the event before sending a new query
     response_event.clear()
     audio_data = record_audio()
-    print(f"Sending audio query of length (in bytes): {len(audio_data)} with response format: {response_format}")
+    #print(f"Sending audio query with response format: {response_format}")
     sio.emit('interact', {'audio': audio_data, 'response_format': response_format})
 
 def main():
